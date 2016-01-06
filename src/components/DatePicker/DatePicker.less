@@ -32,7 +32,7 @@
   position: absolute;
   right:  5px;
   bottom: 5px;
-  z-index: @ms-zIndex-front;
+  z-index: @ms-zIndex-middle;
 }
 
 // The holder is the only "scrollable" top-level container element.
@@ -53,6 +53,12 @@
     .drop-shadow;
     border: 1px solid @ms-color-neutralLight;
     display: block;
+}
+
+// When a picker opens, always open it in front of other closed pickers
+.ms-DatePicker-picker--focused.ms-DatePicker-picker--opened { 
+  position: relative; 
+  z-index: @ms-zIndex-front; 
 }
 
 
@@ -230,7 +236,7 @@
   left: 0px;
   position: absolute;
   top: 0px;
-  width: 180px;
+  width: 140px;
   z-index: @ms-zIndex-middle;
   cursor: pointer;
 }
@@ -314,22 +320,6 @@
   }
 }
 
-// State: The picker is showing the month components.
-.ms-DatePicker.is-pickingMonths {
-
-  // Hide the day picking components.
-  .ms-DatePicker-dayPicker,
-  .ms-DatePicker-monthComponents {
-    display: none;
-  }
-
-  // Show the month picking components.
-  .ms-DatePicker-monthPicker {
-    display: block;
-  }
-
-}
-
 // State: The picker is showing the year components.
 .ms-DatePicker.is-pickingYears {
 
@@ -350,9 +340,6 @@
   }
 
 }
-
-
-
 
 // 460px and up.
 //
@@ -520,6 +507,25 @@
 
     // Show the year picking components.
     .ms-DatePicker-yearPicker {
+      display: block;
+    }
+  }
+}
+
+// On smaller screens the month button toggles to the picking months state.
+@media (max-width: 459px) {
+
+  // State: The picker is showing the month components.
+  .ms-DatePicker.is-pickingMonths {
+
+    // Hide the day picking components.
+    .ms-DatePicker-dayPicker,
+    .ms-DatePicker-monthComponents {
+      display: none;
+    }
+
+    // Show the month picking components.
+    .ms-DatePicker-monthPicker {
       display: block;
     }
   }

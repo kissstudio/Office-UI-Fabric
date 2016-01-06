@@ -23,11 +23,13 @@ var concat = require('gulp-concat');
 var tap = require('gulp-tap');
 var data = require('gulp-data');
 var folders = require('gulp-folders');
+var foreach = require('gulp-foreach');
 var browserSync = require('browser-sync').create();
 var colors = require('colors/safe');
 var path = require('path');
 var wrap = require('gulp-wrap');
 var uglify = require('gulp-uglify');
+var nugetpack = require('gulp-nuget-pack');
 
 // Define paths.
 var distPath = 'dist';
@@ -38,7 +40,9 @@ var paths = {
     distLess: distPath + '/less',
     distCSS: distPath + '/css',
     distSamples: distPath + '/samples',
+    distSampleComponents: distPath + '/samples/' +  '/Components',
     distJS: distPath + '/js',
+    distPackages: distPath + '/packages',
     srcPath: srcPath,
     srcSamples: srcPath + '/samples',
     componentsPath : 'src/components',
@@ -58,7 +62,7 @@ var monthNames = ["January", "February", "March",
                     "August", "September", "October",
                     "November", "December"];
 var bannerTemplate = ['/**',
-      ' * <%= pkg.name %> <%= pkg.version %>',
+      ' * Office UI Fabric <%= pkg.version %>',
       ' * <%= pkg.description %>',
       ' **/',
       ''].join('\n');
@@ -81,8 +85,22 @@ var banners = {
     cssCopyRight: function () {
         return '/* ' +  banners.msMessage  + ' */' + "\r\n";
     } 
-}
+} 
 
+//
+// Local Server Configuration and Testing Website
+// ----------------------------------------------------------------------------
+var portNum = process.env.PORT || 2020;
+var url = "http://localhost";
+var server = require('../server/server');
+var rootPath = path.resolve(__dirname, '../' + paths.distSamples);
+
+
+gulp.task('fabric-server', function() {
+    return server.start(portNum, rootPath);
+});
+
+ 
 //
 // Build Helpers
 // ----------------------------------------------------------------------------
@@ -122,7 +140,7 @@ var getFolders = function (dir) {
 }
 
 var buildEachComponentCss = function (destination) {
-     return componentsFolders.map(function(folder) {
+    return componentsFolders.map(function(folder) {
 
         var manifest = parseManifest(folder);
         var deps = manifest.dependencies || [];
@@ -163,9 +181,20 @@ var buildEachComponentCss = function (destination) {
     });
 }
 
+var buildLinkContainer = function(links) {
+    return '<div class="LinkContainer">'+ links +'</div>';
+}
+
+var buildLinkHtml = function (href, name) {
+    var link = '<a href="' + href + '/" class="ms-Link ms-font-l ms-fontWeight-semilight ms-bgColor-neutralLighter--hover">' + name + '</a>';
+    return link;
+}
+
 // Component parts
 var componentsFolders = getFolders(paths.componentsPath);
 var catalogContents = "";
+var componentLinks = "";
+var samplesLinks = "";
 var samplesFolders = getFolders(paths.srcSamples);
 
 //
@@ -411,7 +440,18 @@ gulp.task('fabric-components-js', ['clean-fabric-components'], function() {
 // Sample Component Building
 // ----------------------------------------------------------------------------
 
-gulp.task('build-component-data', ['clean-samples'], folders(paths.componentsPath, function (folder) {
+gulp.task('reset-component-data', function() {
+    componentLinks = '';
+    storedFiles = {};
+    componentsFolders = getFolders(paths.componentsPath);
+});
+
+gulp.task('reset-sample-data', function() {
+    samplesLinks = '';
+    samplesFolders = getFolders(paths.srcSamples);
+});
+
+gulp.task('build-component-data', ['clean-component-samples'], folders(paths.componentsPath, function (folder) {
 
     var manifest = parseManifest(folder);
     var filesArray = manifest.fileOrder;
@@ -435,13 +475,19 @@ gulp.task('build-component-data', ['clean-samples'], folders(paths.componentsPat
         .pipe(concat(folder + '.html'))
             .on('error', onGulpError)
         .pipe(tap(function (file) {
-            storedFiles[folder] = file.contents.toString();
-            var curString = storedFiles[folder];
+
+             storedFiles[folder] = {
+                "name": file.basename,
+                "contents": file.contents.toString(),
+                "files": []
+            }
+
+            var curString = file.contents.toString();
             curString = JSON.stringify(curString);
 
             //Check if module was already included in string
             if(catalogContents.indexOf(folder + ':') < 0) {
-                catalogContents += ', "' + folder + '" : ' + curString + ' ';
+                componentLinks += buildLinkHtml('Components/' + folder, folder);
             }
         }))
         .on('error', onGulpError);
@@ -449,12 +495,18 @@ gulp.task('build-component-data', ['clean-samples'], folders(paths.componentsPat
         cfiles.pipe(concat(folder + '.html'))
             .on('error', onGulpError)
         .pipe(tap(function (file) {
-            storedFiles[folder] = file.contents.toString();
-            var curString = storedFiles[folder];
+
+            storedFiles[folder] = {
+                "name": file.basename,
+                "contents": file.contents.toString(),
+                "files": []
+            }
+
+            var curString = file.contents.toString();
             curString = JSON.stringify(curString);
             //Check if module was already included in string
             if(catalogContents.indexOf(folder + ':') < 0) {
-                catalogContents += ', "' + folder + '" : ' + curString + ' ';
+                componentLinks += buildLinkHtml('Components/' + folder, folder);
             }
         }))
             .on('error', onGulpError);
@@ -462,20 +514,100 @@ gulp.task('build-component-data', ['clean-samples'], folders(paths.componentsPat
     return cfiles;
 }));
 
-gulp.task('component-samples-template', ['build-component-data'], folders(paths.componentsPath, function (folder) {
+gulp.task('component-samples-template', ['build-component-data', 'component-samples-add-js'], folders(paths.componentsPath, function (folder) {
+
     return gulp.src(paths.templatePath + '/'+ 'individual-component-example.html')
+            .on('error', onGulpError)
+        .pipe(data(function () {
+            var jstag = '';
+            var files =  storedFiles[folder]["files"];
+            for(var o=0; o < files.length; o++) {jstag += files[o];}
+            if(typeof storedFiles[folder][folder] != "undefined") { jstag += storedFiles[folder][folder]; }
+            return { "componentName": folder, "stored": storedFiles[folder].contents, "jstag": jstag };
+        }))
+            .on('error', onGulpError)
+        .pipe(template())
+            .on('error', onGulpError)
+        .pipe(rename('index.html'))
+            .on('error', onGulpError)
+        .pipe(gulp.dest(paths.distSamples + '/Components/' +  folder))
+            .on('error', onGulpError);
+}));
+
+gulp.task('component-samples-add-js', ['build-component-data'], folders(paths.componentsPath, function (folder) {
+
+    return gulp.src(paths.componentsPath + '/' + folder + '/*.js')
+            .on('error', onGulpError)
+      .pipe(foreach(function(stream){
+          return stream
+            .pipe(tap(function(file) {
+                var filename = file.path.replace(/^.*[\\\/]/, '');
+                storedFiles[folder]["files"].push('<script type="text/javascript" src="' + filename+ '"></script>' + "\r\b");
+            }))
+            .on('error', onGulpError);
+      }))
+      .on('error', onGulpError);
+}));
+
+gulp.task('build-sample-data', ['clean-samples'], folders(paths.srcSamples, function (folder) {
+    return gulp.src(paths.srcSamples + '/' +  folder).pipe(tap(function() {
+            samplesLinks += buildLinkHtml(folder, folder);
+    }));
+}));
+
+
+//
+// Sample Index Page Build
+// ----------------------------------------------------------------------------
+
+gulp.task('build-components-page', ['clean-samples', 'build-component-data', 'build-sample-data'], function() {
+    return gulp.src(paths.templatePath + '/'+ 'samples-index.html')
         .on('error', onGulpError)
     .pipe(data(function () {
-        return { "componentName": folder, "stored": storedFiles[folder] };
+        return { "components": buildLinkContainer(componentLinks), "samples" :  buildLinkContainer(samplesLinks)};
     }))
         .on('error', onGulpError)
     .pipe(template())
         .on('error', onGulpError)
     .pipe(rename('index.html'))
         .on('error', onGulpError)
-    .pipe(gulp.dest(paths.distSamples + '/Components/' +  folder))
+    .pipe(gulp.dest(paths.distSamples))
         .on('error', onGulpError);
-}));
+}); 
+
+// gulp.task('index-build-all', ['build-components-page']);
+
+//
+// Packaging tasks
+// ----------------------------------------------------------------------------
+gulp.task('nuget-pack', function(callback) {
+    nugetpack({
+            id: "OfficeUIFabric",
+            title: "Office UI Fabric",
+            version: pkg.version,
+            authors: "Microsoft Corporation",
+            owners: "Microsoft Corporation",
+            description: "Fabric is a responsive, mobile-first, front-end framework, designed to make it quick and simple for you to create web experiences using the Office Design Language. It’s easy to get up and running with Fabric—whether you’re creating a new Office experience from scratch or adding new features to an existing one.",
+            summary: "The front-end framework for building experiences for Office and Office 365.",
+            language: "en-us",
+            projectUrl: "https://github.com/OfficeDev/Office-UI-Fabric",
+            licenseUrl: "https://github.com/OfficeDev/Office-UI-Fabric/blob/master/LICENSE",
+            copyright: "Copyright (c) Microsoft Corporation",
+            requireLicenseAcceptance: true,
+            tags: "Microsoft UI Fabric CSS",
+            outputDir: paths.distPackages
+        },
+
+        [
+            {src: paths.componentsPath, dest: "/content/components/"},
+            {src: paths.distCSS, dest: "/content/css/"},
+            {src: paths.distJS, dest: "/content/scripts/"},
+            {src: paths.distLess, dest: "/content/less/"}
+        ],
+
+        callback
+    );
+});
 
 //
 // Rolled up Build tasks
@@ -524,6 +656,10 @@ gulp.task('fabric-all-finished', ['build-fabric', 'build-fabric-components', 'bu
     console.log(generateSuccess('All Fabric parts built successfully, you may now celebrate and dance!', true));
 });
 
+gulp.task('fabric-all-server', ['build-fabric', 'build-fabric-components', 'build-samples'], function () {
+    console.log(generateSuccess('Fabric built successfully! ' + "\r\n" + 'Fabric samples located at ' + url + ':' + portNum, false));
+});
+
 gulp.task('fabric-all-updated', ['build-fabric', 'build-fabric-components', 'build-samples'], function () {
     console.log(generateSuccess('All Fabric parts updated successfully! Yay!', true));
 });
@@ -555,9 +691,9 @@ gulp.task('watch:fabric-components', ['build-fabric-components', 'fabric-compone
 });
 
 // Watches all src fabric components but, builds the samples only
-gulp.task('watch:component-samples', ['build-component-samples', 'component-samples-finished'], function () {
+gulp.task('watch:component-samples', ['build-component-samples', 'build-components-page', 'fabric-server',  'fabric-all-server'], function () {
     return gulp.watch(paths.componentsPath + '/**/*', batch(function (events, done) {
-        runSequence('build-component-samples', 'component-samples-updated', done);
+        runSequence('build-component-samples', done);
     }));
 });
 
@@ -583,10 +719,20 @@ gulp.task('watch:separately', ['build-fabric', 'build-fabric-components', 'fabri
     }));
 });
 
+var watchTasks = [
+    'build-fabric', 
+    'build-fabric-components', 
+    'build-component-samples', 
+    'build-samples', 
+    'build-components-page', 
+    'fabric-server', 
+    'fabric-all-server'
+];
+
 // Watch and build Fabric when sources change.
-gulp.task('watch', ['build-fabric', 'build-fabric-components', 'build-component-samples', 'build-samples', 'fabric-all-finished'], function () {
+gulp.task('watch', watchTasks, function () {
     gulp.watch(paths.srcPath + '/**/*', batch(function (events, done) {
-        runSequence('build-fabric', 'build-fabric-components', 'build-component-samples', 'build-samples', 'fabric-all-updated', done);
+        runSequence('re-build', done);
     }));
 });
 
@@ -594,5 +740,6 @@ gulp.task('watch', ['build-fabric', 'build-fabric-components', 'build-component-
 // Default Build
 // ----------------------------------------------------------------------------
 
-gulp.task('build', ['build-fabric', 'build-fabric-components', 'build-component-samples', 'build-samples', 'fabric-all-finished']);
+gulp.task('build', ['build-fabric', 'build-fabric-components', 'build-component-samples', 'build-samples', 'build-components-page', 'fabric-all-finished']); 
+gulp.task('re-build', ['reset-sample-data', 'reset-component-data', 'build-fabric', 'build-fabric-components', 'build-component-samples', 'build-samples', 'build-components-page', 'fabric-all-finished']); 
 

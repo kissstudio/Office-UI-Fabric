@@ -4,12 +4,14 @@
 
 Fabric contains many common components such as buttons, drop-down lists, and toggle switches. It also contains more specialized components, like dialog boxes (with overlays), people pickers, personas, and navigation bars.
 
+For simple instructions for using Fabric components in Office Add-ins, see the article [Using Fabric with Office Add-ins](https://msdn.microsoft.com/EN-US/library/office/6f46dd69-2ba3-4b0f-9735-7d7394ca2731.aspx).
+
 ##Contents
 
-- [Input components](#inputs)
-- [Layout components](#layout)
-- [Navigation components](#navigation)
-- [Content components](#content)
+- [Input components](#input-components)
+- [Layout components](#layout-components)
+- [Navigation components](#navigation-components)
+- [Content components](#content-components)
 
 
 ##Input components
@@ -18,10 +20,12 @@ Fabric contains many common components such as buttons, drop-down lists, and tog
 |:-----|:-----|
 |Buttons|![Buttons](http://odux.azurewebsites.net/github/img/buttons.png)|
 |Choice fields|![Choice fields](http://odux.azurewebsites.net/github/img/Choice.png)|
+|Date Picker|![Date/time picker](http://i.imgur.com/odFYZjM.png)![Date/time picker small](http://i.imgur.com/k0Yz8Bo.png)
 |Form field label|![Form field label](http://odux.azurewebsites.net/github/img/Label.png)|
 |Search box|![Search box](http://odux.azurewebsites.net/github/img/Search.png)|
 |Toggle|![Toggle](http://odux.azurewebsites.net/github/img/Toggle.png)|
 |Text fields|![Text field](http://odux.azurewebsites.net/github/img/TextFields.png)|
+
 
 
 
